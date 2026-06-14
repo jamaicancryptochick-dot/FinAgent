@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Prop Hunt 3D</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0f;
+      color: #eee;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+      height: 100dvh;
+      width: 100vw;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    /* ── Screens ── */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 24px;
+      z-index: 10;
+    }
+    .screen.hidden { display: none; }
+
+    /* ── Menu ── */
+    #screen-menu {
+      background: radial-gradient(ellipse at 50% 60%, #1a1040 0%, #0a0a0f 70%);
+    }
+    .game-title {
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      font-weight: 900;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #ff6b35, #ff3b6e, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+    }
+    .game-subtitle {
+      color: #888;
+      font-size: 1rem;
+      margin-top: -8px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      padding: 14px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+      width: 100%;
+      max-width: 320px;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.9; }
+    .btn-primary { background: linear-gradient(135deg, #ff6b35, #ff3b6e); color: #fff; }
+    .btn-secondary { background: #1e1e2e; color: #ccc; border: 1px solid #333; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; border: 1px solid #991b1b; }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 320px;
+    }
+    .input-group label { font-size: 0.85rem; color: #888; }
+    .input-group input {
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #333;
+      background: #111;
+      color: #eee;
+      font-size: 1rem;
+      outline: none;
+      width: 100%;
+    }
+    .input-group input:focus { border-color: #a855f7; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 320px;
+      color: #444;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #333;
+    }
+
+    /* ── Lobby ── */
+    #screen-lobby { background: #0d0d1a; }
+    .lobby-code {
+      font-size: 2.5rem;
+      font-weight: 900;
+      letter-spacing: 8px;
+      color: #a855f7;
+      background: #1a1030;
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: 1px solid #3d2070;
+    }
+    .lobby-code-label { font-size: 0.85rem; color: #666; }
+    .player-list {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .player-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: #111;
+      border-radius: 8px;
+      border: 1px solid #222;
+    }
+    .player-row .role-badge {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .role-badge.prop { background: #1a3a1a; color: #4ade80; }
+    .role-badge.hunter { background: #3a1a1a; color: #f87171; }
+    .role-toggle-btns {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      max-width: 320px;
+    }
+    .role-toggle-btns .btn { flex: 1; padding: 10px; font-size: 0.95rem; }
+    .btn-prop { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+    .btn-hunter { background: #7f1d1d; color: #f87171; border: 1px solid #991b1b; }
+    .btn-prop.active { background: #166534; box-shadow: 0 0 0 2px #4ade80; }
+    .btn-hunter.active { background: #991b1b; box-shadow: 0 0 0 2px #f87171; }
+
+    /* ── Game Canvas ── */
+    #game-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    #game-canvas.hidden { display: none; }
+
+    /* ── HUD ── */
+    #hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+    #hud.hidden { display: none; }
+
+    #hud-timer {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 2rem;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.4);
+      padding: 4px 20px;
+      border-radius: 8px;
+    }
+    #hud-phase {
+      position: absolute;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #a855f7;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    #hud-role {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+    #hud-role.prop { background: rgba(20,83,45,0.85); color: #4ade80; }
+    #hud-role.hunter { background: rgba(127,29,29,0.85); color: #f87171; }
+
+    #hud-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+    }
+    #hud-crosshair::before, #hud-crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.8);
+    }
+    #hud-crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+    #hud-crosshair::after { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+    #hud-crosshair.hunter { display: block; }
+    #hud-crosshair.prop { display: none; }
+
+    #kill-feed {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+    }
+    .kill-entry {
+      background: rgba(0,0,0,0.6);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      animation: fadeOut 4s forwards;
+    }
+    @keyframes fadeOut { 0%{opacity:1} 75%{opacity:1} 100%{opacity:0} }
+
+    /* Prop picker */
+    #prop-picker {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,10,20,0.92);
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      max-width: 400px;
+      pointer-events: all;
+      z-index: 30;
+    }
+    #prop-picker.hidden { display: none; }
+    .prop-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 14px;
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      min-width: 70px;
+    }
+    .prop-item:hover, .prop-item.selected { border-color: #a855f7; background: #2a1a3e; }
+    .prop-item .prop-icon { font-size: 1.5rem; }
+    .prop-item .prop-label { font-size: 0.7rem; color: #aaa; text-align: center; }
+    #prop-picker-btn {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: all;
+      padding: 10px 24px;
+      font-size: 0.9rem;
+    }
+    #prop-picker-btn.hidden { display: none; }
+
+    /* Mobile controls */
+    #joystick-zone {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 45%;
+      height: 200px;
+      pointer-events: all;
+      z-index: 25;
+    }
+    #camera-zone {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 55%;
+      height: 100%;
+      pointer-events: all;
+      z-index: 25;
+    }
+    #shoot-btn {
+      position: absolute;
+      bottom: 80px;
+      right: 24px;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(239,68,68,0.85);
+      border: 3px solid #f87171;
+      color: #fff;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+      z-index: 26;
+      cursor: pointer;
+      user-select: none;
+    }
+    #shoot-btn.hidden { display: none; }
+
+    /* Mobile visible only */
+    .mobile-only { display: none; }
+    @media (pointer: coarse) {
+      .mobile-only { display: flex; }
+      #hud-crosshair { display: none !important; }
+    }
+
+    /* Results overlay */
+    #results-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 40;
+      pointer-events: all;
+    }
+    #results-overlay.hidden { display: none; }
+    .results-title {
+      font-size: clamp(2rem, 6vw, 4rem);
+      font-weight: 900;
+    }
+    .results-title.hunters-win { color: #f87171; }
+    .results-title.props-win { color: #4ade80; }
+
+    /* Phase announcement */
+    #phase-announce {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 35;
+    }
+    #phase-announce-text {
+      font-size: clamp(2rem, 8vw, 5rem);
+      font-weight: 900;
+      text-align: center;
+      text-shadow: 0 4px 20px rgba(0,0,0,0.9);
+      animation: announceAnim 2.5s forwards;
+    }
+    @keyframes announceAnim {
+      0% { opacity: 0; transform: scale(0.7); }
+      20% { opacity: 1; transform: scale(1.05); }
+      70% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.1); }
+    }
+
+    .eliminated-banner {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(127,29,29,0.9);
+      color: #fca5a5;
+      font-size: 1.5rem;
+      font-weight: 900;
+      padding: 16px 32px;
+      border-radius: 12px;
+      border: 2px solid #991b1b;
+      text-align: center;
+      pointer-events: none;
+      z-index: 36;
+    }
+    .eliminated-banner.hidden { display: none; }
+
+    .error-msg {
+      color: #f87171;
+      font-size: 0.9rem;
+      text-align: center;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Menu Screen -->
+    <div id="screen-menu" class="screen">
+      <h1 class="game-title">PROP HUNT</h1>
+      <p class="game-subtitle">Hide. Disguise. Survive.</p>
+
+      <div class="input-group">
+        <label>Your Name</label>
+        <input id="menu-name" type="text" placeholder="Enter your name" maxlength="16" />
+      </div>
+
+      <button class="btn btn-primary" id="btn-singleplayer">🎮 Play Solo vs AI</button>
+
+      <div class="divider">or</div>
+
+      <button class="btn btn-secondary" id="btn-create">🏠 Create Room</button>
+
+      <div class="input-group">
+        <label>Room Code</label>
+        <input id="join-code" type="text" placeholder="XXXXXX" maxlength="6"
+               style="text-transform:uppercase;letter-spacing:4px;text-align:center" />
+      </div>
+      <button class="btn btn-secondary" id="btn-join">🔗 Join Room</button>
+
+      <p class="error-msg" id="menu-error"></p>
+    </div>
+
+    <!-- Lobby Screen -->
+    <div id="screen-lobby" class="screen hidden">
+      <h2 style="font-size:1.4rem;font-weight:700">Lobby</h2>
+      <p class="lobby-code-label">Share this code with friends</p>
+      <div class="lobby-code" id="lobby-code-display">------</div>
+
+      <div class="player-list" id="lobby-player-list"></div>
+
+      <p style="font-size:0.85rem;color:#666">Choose your role:</p>
+      <div class="role-toggle-btns">
+        <button class="btn btn-prop active" id="btn-role-prop">🪴 Prop</button>
+        <button class="btn btn-hunter" id="btn-role-hunter">🔫 Hunter</button>
+      </div>
+
+      <button class="btn btn-primary" id="btn-start-game">▶ Start Game</button>
+      <button class="btn btn-danger" id="btn-leave-lobby">← Leave</button>
+      <p class="error-msg" id="lobby-error"></p>
+    </div>
+
+    <!-- Game Canvas (Three.js renders here) -->
+    <canvas id="game-canvas" class="hidden"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="hud-timer">--:--</div>
+      <div id="hud-phase">Waiting</div>
+      <div id="hud-role" class="prop">PROP</div>
+      <div id="hud-crosshair" class="prop"></div>
+      <div id="kill-feed"></div>
+
+      <!-- Prop disguise picker -->
+      <button class="btn btn-secondary" id="prop-picker-btn" class="hidden">🎭 Disguise</button>
+      <div id="prop-picker" class="hidden"></div>
+
+      <!-- Results overlay -->
+      <div id="results-overlay" class="hidden">
+        <div class="results-title" id="results-title">Hunters Win!</div>
+        <p id="results-sub" style="color:#888"></p>
+        <button class="btn btn-primary" id="btn-results-lobby" style="pointer-events:all;max-width:200px">Back to Lobby</button>
+      </div>
+
+      <!-- Phase announcement -->
+      <div id="phase-announce">
+        <div id="phase-announce-text" style="display:none"></div>
+      </div>
+
+      <!-- Eliminated banner -->
+      <div class="eliminated-banner hidden" id="eliminated-banner">
+        💀 You've been eliminated!<br>
+        <span style="font-size:0.9rem;font-weight:400">Spectating...</span>
+      </div>
+
+      <!-- Mobile shoot button -->
+      <div id="shoot-btn" class="hidden mobile-only">🎯</div>
+    </div>
+
+    <!-- Mobile input zones (created by MobileControls.js) -->
+    <div id="joystick-zone" style="display:none"></div>
+    <div id="camera-zone" style="display:none"></div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
